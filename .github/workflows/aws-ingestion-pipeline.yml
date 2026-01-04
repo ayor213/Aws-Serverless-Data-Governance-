@@ -24,4 +24,4 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: 'us-east-1'
-        run: python /home/runner/work/Aws-Serverless-Data-Governance/ingest_to_s3.py
+        run: python Aws-Serverless-Data-Governance/ingest_to_s3.py

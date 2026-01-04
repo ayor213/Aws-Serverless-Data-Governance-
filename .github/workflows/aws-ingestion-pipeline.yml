@@ -1,5 +1,6 @@
 name: AWS Stock Ingestion Pipeline
 
+
 on:
   schedule:
     - cron: '0 0 * * *'  # Daily at midnight UTC
@@ -19,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: pip install yfinance boto3 pandas
 
+      - name: Show workspace
+        run: pwd ls -la ls -la .github ls -la path || true
+        
       - name: Execute Python Ingestion
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

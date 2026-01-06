@@ -3,42 +3,70 @@ import yfinance as yf
 import pandas as pd
 from io import StringIO
 
-# AWS S3 configuration
 bucket_name = "ds-serverless-data-governance"
 s3 = boto3.client("s3", region_name="us-east-1")
 
-# 30 stocks
 tickers = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "FB",
-    "TSLA", "NVDA", "BRK-B", "JPM", "JNJ",
-    "V", "PG", "DIS", "HD", "MA",
-    "BAC", "XOM", "PFE", "KO", "VZ",
-    "ADBE", "NFLX", "CSCO", "INTC", "CMCSA",
-    "PEP", "CRM", "T", "ABT", "CVX"
+    "AAPL","MSFT","GOOGL","AMZN","FB","TSLA","NVDA","BRK-B","JPM","JNJ",
+    "V","PG","DIS","HD","MA","BAC","XOM","PFE","KO","VZ",
+    "ADBE","NFLX","CSCO","INTC","CMCSA","PEP","CRM","T","ABT","CVX"
 ]
 
-# Date range
 start_date = "2018-03-01"
 end_date   = "2026-01-01"
 
-# List to hold all DataFrames
-all_data = []
+frames = []
 
 for ticker in tickers:
     print(f"Fetching {ticker}...")
-    data = yf.download(ticker, start=start_date, end=end_date)
-    if not data.empty:
-        data["Ticker"] = ticker  # Add Ticker column
-        all_data.append(data.reset_index())
+    df = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False)
 
-# Combine all stocks into a single DataFrame
-combined_df = pd.concat(all_data, ignore_index=True)
+    if df.empty:
+        continue
 
-# Convert to CSV string
+    # HARD RESET
+    df = df.reset_index()
+
+    # Flatten columns if yfinance gave MultiIndex
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    # Standardize column names
+    df.columns = [c.replace(" ", "_") for c in df.columns]
+
+    # Guarantee Adj_Close
+    if "Adj_Close" not in df.columns:
+        df["Adj_Close"] = df["Close"]
+
+    # Add ticker
+    df["Ticker"] = ticker
+
+    # Enforce schema strictly
+    df = df[[
+        "Date",
+        "Ticker",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Adj_Close",
+        "Volume"
+    ]]
+
+    frames.append(df)
+
+# Final combine
+combined_df = pd.concat(frames, ignore_index=True)
+combined_df.sort_values(["Date", "Ticker"], inplace=True)
+
+# Export
 csv_buffer = StringIO()
 combined_df.to_csv(csv_buffer, index=False)
 
-# Upload to S3
-object_key = "combined_daily_prices.csv"
-s3.put_object(Bucket=bucket_name, Key=object_key, Body=csv_buffer.getvalue())
-print(f"Combined CSV successfully uploaded to S3 bucket '{bucket_name}' as '{object_key}'")
+s3.put_object(
+    Bucket=bucket_name,
+    Key="combined_daily_prices_normalized.csv",
+    Body=csv_buffer.getvalue()
+)
+
+print("✅ Normalized long-format CSV uploaded to S3")
